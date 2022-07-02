@@ -1,6 +1,7 @@
 package batch
 
 import (
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,44 @@ func getOne(id int64) user {
 	return user{ID: id}
 }
 
+var wg sync.WaitGroup
+
+func worker(input chan int64, output chan user) {
+	defer wg.Done()
+
+	for id := range input {
+		output <- getOne(id)
+	}
+}
+
+// TODO: need to add code for errors processing
 func getBatch(n int64, pool int64) (res []user) {
-	return nil
+	input := make(chan int64, n)
+	output := make(chan user, n)
+
+	var i int64
+
+	// run workers pool
+	for i = 0; i < pool; i++ {
+		wg.Add(1)
+		go worker(input, output)
+	}
+
+	// add tasks for workers
+	for i = 0; i < n; i++ {
+		input <- i
+	}
+	close(input)
+
+	wg.Wait()
+
+	// here all workers done
+	close(output)
+
+	// store results
+	for r := range output {
+		res = append(res, r)
+	}
+
+	return res
 }
